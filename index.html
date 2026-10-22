@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>我的 jsPsych 实验</title>
+    <!-- 引入 jsPsych 核心文件和插件 -->
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@1.1.4"></script>
+    <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+</body>
+<script>
+    // 初始化 jsPsych
+    const jsPsych = initJsPsych({
+        on_finish: function() {
+            // 实验结束时的回调函数
+            alert("实验结束！感谢您的参与。");
+            // 以后这里会写“将数据传回 Qualtrics 并跳转”的代码
+        }
+    });
+
+    let timeline = [];
+
+    // 1. 指导语试次
+    const instructions = {
+        type: jsPsychInstructions,
+        pages: [
+            '欢迎参加本实验。<br>接下来屏幕中央会出现字母 F 或 J。',
+            '如果看到 <strong>F</strong>，请按键盘上的 <mark>F</mark> 键；<br>如果看到 <strong>J</strong>，请按键盘上的 <mark>J</mark> 键。<br><br>准备好了吗？点击下一步开始。'
+        ],
+        show_clickable_nav: true
+    };
+    timeline.push(instructions);
+
+    // 2. 刺激呈现试次（以呈现字母 F 为例）
+    const trial = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: '<div style="font-size: 60px;">F</div>',
+        choices: ['f', 'j'],
+        data: {
+            task: 'response',
+            correct_response: 'f'
+        }
+    };
+    timeline.push(trial);
+
+    // 运行实验
+    jsPsych.run(timeline);
+</script>
+</html>
