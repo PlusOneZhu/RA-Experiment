@@ -24,8 +24,8 @@
     <script>
         // 1. 获取 Qualtrics 传过来的 ResponseID
         const urlParams = new URLSearchParams(window.location.search);
-        const qualtricsID = urlParams.get('Q_R') || 'TEST_USER'; // 获取失败时默认 TEST_USER
-        const qualtricsBaseUrl = 'https://ust.az1.qualtrics.com/jfe/form/SV_9HO5SxIBz3K8a46';
+        const surveyAResponseID = urlParams.get('SurveyA_ResponseID') || urlParams.get('Q_R') || 'TEST_USER';
+        const qualtricsBaseUrl = 'https://ust.az1.qualtrics.com/jfe/form/SV_eEgPdUZHHxl9UeW';
 
         const roboAdvisorGroups = ['High DT', 'Low DT', 'Control'];
         const roboAdvisorGroup = roboAdvisorGroups[Math.floor(Math.random() * roboAdvisorGroups.length)];
@@ -53,7 +53,7 @@
             display_element: 'jspsych-target',
             on_finish: function() {
                 const redirectUrl = new URL(qualtricsBaseUrl);
-                redirectUrl.searchParams.set('Q_R', qualtricsID);
+                redirectUrl.searchParams.set('SurveyA_ResponseID', surveyAResponseID);
                 redirectUrl.searchParams.set('RA_Usage', experimentData.RA_Usage);
                 redirectUrl.searchParams.set('Manual_Trade', JSON.stringify(experimentData.Manual_Trade));
                 redirectUrl.searchParams.set('Final_Portfolio', JSON.stringify(experimentData.Final_Portfolio));
