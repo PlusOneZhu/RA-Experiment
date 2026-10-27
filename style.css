@@ -433,11 +433,51 @@ body {
 
 .trade-history {
     padding-left: 24px;
-    line-height: 1.7;
+    line-height: 1.5;
 }
 
 .trade-history li + li {
-    margin-top: 6px;
+    margin-top: 10px;
+}
+
+.trade-history-item {
+    padding: 12px 14px;
+    border: 1px solid #dce2ea;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.trade-history-item span {
+    display: block;
+    margin-top: 4px;
+}
+
+.trade-history-heading {
+    display: block;
+}
+
+.attention-check fieldset {
+    margin: 20px 0;
+    padding: 0;
+    border: 0;
+}
+
+.attention-check legend {
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.attention-check-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 10px 0;
+    cursor: pointer;
+}
+
+.attention-check-option input {
+    flex: 0 0 auto;
+    margin-top: 5px;
 }
 
 .confirmation-modal[hidden] {
