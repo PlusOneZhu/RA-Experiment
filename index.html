@@ -355,7 +355,6 @@
                             <button id="robo-follow-button" class="one-click-button" type="button">
                                 One-Click<br>to Follow the Robo-Advisor’s Recommendation
                             </button>
-                            <p id="robo-follow-note" class="robo-follow-note"></p>
                         </section>
                     </div>
 
@@ -429,7 +428,6 @@
                 const totalDisplay = document.getElementById('portfolio-total-value');
                 const history = document.getElementById('trade-history');
                 const followButton = document.getElementById('robo-follow-button');
-                const followNote = document.getElementById('robo-follow-note');
                 const confirmModal = document.getElementById('robo-confirm-modal');
                 const cancelFollowButton = document.getElementById('robo-confirm-cancel');
                 const confirmFollowButton = document.getElementById('robo-confirm-yes');
@@ -524,12 +522,6 @@
                         weight: item.weight
                     }))
                     .filter(item => item.stock && item.stock.price > 0);
-
-                if (roboAdvisorGroup === 'Control') {
-                    followNote.textContent = 'No portfolio recommendation is displayed for this group. The button will still apply the investment portfolio automatically.';
-                } else {
-                    followNote.textContent = `High DT and Low DT use the supplied recommended portfolio. The non-HSI security 2800.HK is excluded; the remaining HSI weights (total ${recommendationTotalWeight.toFixed(4)}%) are normalized to 100%. Other holdings will be sold before following this portfolio.`;
-                }
 
                 window.hsiStocks.forEach(stock => {
                     const card = document.createElement('button');

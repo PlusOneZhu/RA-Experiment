@@ -254,15 +254,10 @@ body {
     cursor: not-allowed;
 }
 
-.robo-follow-note,
 .stock-coverage-note {
     color: #596273;
     font-size: 14px;
     line-height: 1.55;
-}
-
-.robo-follow-note {
-    margin-bottom: 0;
 }
 
 .one-click-button:not(:disabled):hover,
