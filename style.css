@@ -467,10 +467,15 @@ body {
     font-weight: 700;
 }
 
+.attention-check-note {
+    margin: 0 0 16px;
+}
+
 .attention-check-option {
     display: flex;
     align-items: flex-start;
     gap: 10px;
+    width: 100%;
     margin: 10px 0;
     cursor: pointer;
 }
