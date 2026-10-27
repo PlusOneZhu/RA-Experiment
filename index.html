@@ -47,22 +47,11 @@
         let cashBalance = 10000000;
         const holdings = new Map();
 
-        // =========================================================
-        // 模拟交易过程中的示例逻辑（请根据你具体的页面按钮/按键进行赋值）：
-        //
-        // A. 当用户点击了某个 RA 按钮时：
-        //    experimentData.RA_Usage = 1; 
-        //
-        // B. 只有用户手动交易写入 Manual_Trade；自动跟投交易仅显示在页面交易记录中。
-        //
-        // C. Final_Portfolio 在每次持仓或现金余额更新后同步为最终状态。
-        // =========================================================
-
         // 3. 初始化 jsPsych
         const jsPsych = initJsPsych({
             display_element: 'jspsych-target',
             on_finish: function() {
-                const qualtricsBaseUrl = "https://yourorganization.qualtrics.com/jfe/form/SV_xxxxxxxxxxxx";
+                const qualtricsBaseUrl = "https://ust.az1.qualtrics.com/jfe/form/SV_9HO5SxIBz3K8a46";
 
                 const manualTradeStr = JSON.stringify(experimentData.Manual_Trade);
                 const finalPortfolioStr = JSON.stringify(experimentData.Final_Portfolio);
