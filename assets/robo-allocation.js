@@ -1,0 +1,1 @@
+window.roboPortfolioAllocation = [{"code":"00241","weight":3.6843},{"code":"00669","weight":29.0226},{"code":"00700","weight":23.377},{"code":"00960","weight":2.253},{"code":"01177","weight":1.6579},{"code":"01211","weight":5.691},{"code":"02020","weight":5.2252},{"code":"02313","weight":12.7628},{"code":"02331","weight":2.3913},{"code":"02382","weight":38.3297}];

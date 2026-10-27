@@ -2,50 +2,756 @@
 <html>
 <head>
     <title>我的 jsPsych 实验</title>
-    <!-- 引入 jsPsych 核心文件和插件 -->
+
     <script src="https://unpkg.com/jspsych@7.3.4"></script>
     <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
     <script src="https://unpkg.com/@jspsych/plugin-instructions@1.1.4"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-multi-choice@1.1.0"></script>
     <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
+    <link href="./style.css" rel="stylesheet" type="text/css" />
+    <script src="./assets/hsi-stocks.js"></script>
+    <script src="./assets/robo-allocation.js"></script>
 </head>
 <body>
+    <div class="layout">
+        <div class="image-panel">
+            <img src="./assets/Robo-image.png" alt="Experiment Illustration">
+        </div>
+        <div class="experiment-panel">
+            <div id="jspsych-target"></div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 获取 Qualtrics 传过来的 ResponseID
+        const urlParams = new URLSearchParams(window.location.search);
+        const qualtricsID = urlParams.get('Q_R') || 'TEST_USER'; // 获取失败时默认 TEST_USER
+
+        const roboAdvisorGroups = ['High DT', 'Low DT', 'Control'];
+        const roboAdvisorGroup = roboAdvisorGroups[Math.floor(Math.random() * roboAdvisorGroups.length)];
+        const roboSuggestionImage = {
+            'High DT': './assets/Robo suggestion - High DT.png',
+            'Low DT': './assets/Robo suggestion - Low DT.png',
+            'Control': ''
+        }[roboAdvisorGroup];
+
+        // 2. 初始化实验变量
+        let experimentData = {
+            RA_Usage: 0,           // One-Click 使用状态：0 = 未使用，1 = 已使用
+            Manual_Trade: [],      // 仅记录用户手动确认的买卖
+            Final_Portfolio: {},    // 保存最终持仓数量和现金余额
+            ATT_Sharpe: '',
+            Robo_Advisor_Group: roboAdvisorGroup
+        };
+
+        let cashBalance = 10000000;
+        const holdings = new Map();
+
+        // =========================================================
+        // 模拟交易过程中的示例逻辑（请根据你具体的页面按钮/按键进行赋值）：
+        //
+        // A. 当用户点击了某个 RA 按钮时：
+        //    experimentData.RA_Usage = 1; 
+        //
+        // B. 只有用户手动交易写入 Manual_Trade；自动跟投交易仅显示在页面交易记录中。
+        //
+        // C. Final_Portfolio 在每次持仓或现金余额更新后同步为最终状态。
+        // =========================================================
+
+        // 3. 初始化 jsPsych
+        const jsPsych = initJsPsych({
+            display_element: 'jspsych-target',
+            on_finish: function() {
+                const qualtricsBaseUrl = "https://yourorganization.qualtrics.com/jfe/form/SV_xxxxxxxxxxxx";
+
+                const manualTradeStr = JSON.stringify(experimentData.Manual_Trade);
+                const finalPortfolioStr = JSON.stringify(experimentData.Final_Portfolio);
+
+                const redirectUrl = `${qualtricsBaseUrl}?Q_R=${qualtricsID}` +
+                    `&RA_Usage=${encodeURIComponent(experimentData.RA_Usage)}` +
+                    `&Manual_Trade=${encodeURIComponent(manualTradeStr)}` +
+                    `&Final_Portfolio=${encodeURIComponent(finalPortfolioStr)}` +
+                    `&ATT_Sharpe=${encodeURIComponent(experimentData.ATT_Sharpe)}` +
+                    `&Robo_Advisor_Group=${encodeURIComponent(experimentData.Robo_Advisor_Group)}`;
+
+                window.location.href = redirectUrl;
+            }
+        });
+
+        let timeline = [];
+
+        let countdownInterval = null;
+
+        function setPageLayout(mode) {
+            const imagePanel = document.querySelector('.image-panel');
+            const experimentPanel = document.querySelector('.experiment-panel');
+
+            if (!imagePanel || !experimentPanel) return;
+
+            if (mode === 'image') {
+                imagePanel.classList.remove('hidden');
+                experimentPanel.classList.remove('full-width');
+            } else {
+                imagePanel.classList.add('hidden');
+                experimentPanel.classList.add('full-width');
+            }
+        }
+
+        function enableNextAfterDelay(seconds) {
+            const nav = document.querySelector('.jspsych-instructions-nav');
+            const nextBtn = nav ? nav.querySelector('button:last-child') : null;
+
+            if (!nav || !nextBtn) return;
+
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+
+            let timerEl = document.getElementById('next-timer');
+            if (!timerEl) {
+                timerEl = document.createElement('span');
+                timerEl.id = 'next-timer';
+                timerEl.className = 'next-timer';
+                nav.appendChild(timerEl);
+            }
+
+            let remaining = seconds;
+
+            nextBtn.disabled = true;
+            nextBtn.style.opacity = '0.5';
+            nextBtn.style.cursor = 'not-allowed';
+
+            timerEl.textContent = remaining + 's';
+            timerEl.classList.add('visible');
+
+            countdownInterval = setInterval(() => {
+                remaining -= 1;
+                timerEl.textContent = remaining + 's';
+
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+
+                    nextBtn.disabled = false;
+                    nextBtn.style.opacity = '1';
+                    nextBtn.style.cursor = 'pointer';
+                    timerEl.classList.remove('visible');
+                    timerEl.textContent = '';
+                }
+            }, 1000);
+        }
+
+        const introInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                '<div id="intro-page" class="instruction-text">' +
+                    '<h2>Robo-Advisor Assisted Investment Game</h2>' +
+                    '<p>Welcome to this investment game!</p>' +
+                    '<ul class="instruction-list">' +
+                        '<li>You will be given <strong>a virtual HK$10 million</strong> for investment.</li>' +
+                        '<li>A robo-advisor designed by professors at HKUST will assist you in this game.</li>' +
+                        '<li>You may decide whether to follow the recommended portfolio from the robo-advisor.</li>' +
+                        '<li>Each participant will receive <strong>HK$50</strong> upon successful completion of the game and the exit survey.</li>' +
+                        '<li>The top 20 winners will earn <strong>extra cash rewards</strong>.</li>' +
+                    '</ul>' +
+                    '<p>Please click "Next" to begin.</p>' +
+                '</div>'
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('image');
+            },
+            on_load: function() {
+                enableNextAfterDelay(2);
+            }
+        };
+
+        const roboInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                `
+                <div id="robo-page" class="instruction-text">
+                    <h2>What is Robo-Advisor and how does it work?</h2>
+
+                    <ol class="instruction-list">
+                        <li>Robo-advisors are digital tools that can provide automated, algorithm-driven financial planning services. A typical robo-advisor collects information from clients about their financial situation and risk preferences through an online survey, and then uses the data to offer investment advice. Some robo-advisors can automatically invest assets if requested by clients.</li>
+
+                        <li>The design of the robo-advisor used in this game was based on the modern portfolio theory originally proposed by <strong>Nobel Prize Winner Markowitz</strong> in 1952, and further improved by Professor Yingying Li and Professor Xinhua Zheng from <strong>the Hong Kong University of Science and Technology</strong>.</li>
+
+                        <li>
+                            Our robo-advisor’s algorithm will first estimate the <strong>optimum annual volatility</strong>, and then generate an investment portfolio by <strong>maximizing the Sharpe Ratio</strong> based on the optimum annual volatility.
+                            <ul class="instruction-sublist">
+                                <li><strong>Volatility</strong> measures how much an asset price changes over time. High volatility means the price of an asset is likely to change dramatically in a short period of time while low volatility indicates an asset’s price will be relatively stable. Standard deviation is a typical measure of volatility.</li>
+                                <li><strong>Sharpe ratio</strong> is the measure of <strong>risk-adjusted return</strong> of a financial portfolio. A portfolio with a higher Sharpe ratio is considered superior relative to its peers.</li>
+                            </ul>
+                        </li>
+
+                        <li>In this game, we use Sharpe ratio to evaluate and rank players’ investment performance.</li>
+                        <li>When market condition changes, the robo-advisor will automatically rebalance, i.e., recalculate the portfolio to keep it on track.</li>
+                    </ol>
+                </div>
+                `
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('image');
+            },
+            on_load: function() {
+                enableNextAfterDelay(2);
+            }
+        };
+
+        const attentionOptions = [
+            "The total profit of a financial portfolio over time",
+            "The raw market price of an asset",
+            "The risk-adjusted return of a financial portfolio",
+            "The standard deviation of asset price changes"
+        ];
+
+        const shuffledAttentionOptions = attentionOptions
+            .map(value => ({ value, sort: Math.random() }))
+            .sort((a, b) => a.sort - b.sort)
+            .map(({ value }) => value);
+
+        const attentionCheck = {
+            type: jsPsychSurveyMultiChoice,
+            questions: [{
+                prompt: "According to the information provided, what does the Sharpe ratio measure?",
+                name: "ATT_Sharpe",
+                options: shuffledAttentionOptions,
+                required: true,
+                horizontal: false
+            }],
+            on_start: function() {
+                setPageLayout('no-image');
+            },
+            on_finish: function(data) {
+                experimentData.ATT_Sharpe = data.response.ATT_Sharpe;
+            }
+        };
+
+        const rulesInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                `
+                <div id="rules-page" class="instruction-text">
+                    <h2>Game Rules</h2>
+
+                    <h3>1. General Notice</h3>
+                    <ul class="instruction-list">
+                        <li><strong>Virtual Currency:</strong> Each participant is allocated <strong>HKD $10,000,000</strong> in virtual funds. This virtual balance has no real-world monetary value and cannot be withdrawn, exchanged, or converted into real cash.</li>
+                        <li><strong>Evaluation:</strong> All participants will be ranked based on the <strong>Sharpe Ratio</strong> of their portfolio calculated on the final trading day of the <strong>1-month period</strong>.</li>
+                    </ul>
+
+                    <h3>2. Portfolio Decision</h3>
+                    <ul class="instruction-list">
+                        <li><strong>One-Time Allocation:</strong> You must select and submit your investment portfolio during the initial experiment session. Once submitted, no modifications or trading changes are permitted for the remaining days.</li>
+                        <li><strong>Stocks:</strong> The stock pool is strictly limited to the constituents of the <strong>Hang Seng Index (HSI)</strong> as of <strong>September 2026</strong>.</li>
+                        <li><strong>Allocation Flexibility:</strong> There are no restrictions on how you divide or allocate your virtual capital among the eligible constituents.</li>
+                    </ul>
+
+                    <h3>3. Transaction Fees</h3>
+                    <p>All buy and sell orders will incur standard transaction fees deducted directly from your virtual balance. Each transaction fee consists of four components:</p>
+                    <ol class="instruction-list">
+                        <li>Brokerage Commission: 0.0668% of the transaction value (Minimum: HKD $50 per trade).</li>
+                        <li>Levies (HKEX & SFC): 0.0077% of the transaction value.</li>
+                        <li>Stamp Duty: 0.13% of the transaction value.</li>
+                        <li>Trading Fee: 0.006% of the transaction value (Maximum: HKD $200 per trade).</li>
+                    </ol>
+
+                    <h3>4. Fair Play</h3>
+                    <ul class="instruction-list">
+                        <li><strong>Prohibition:</strong> Participants must not exploit any software bugs, errors, or system loopholes.</li>
+                        <li><strong>Penalties:</strong> If a participant is found abusing system flaws (whether publicly known or undisclosed), the organizing committee reserves the right to adjust the participant's Sharpe Ratio or disqualify them entirely without prior notice.</li>
+                    </ul>
+                </div>
+                `
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('no-image');
+            },
+            on_load: function() {
+                enableNextAfterDelay(2);
+            }
+        };
+
+        const portfolioInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                `
+                <div id="portfolio-page" class="instruction-text portfolio-summary">
+                    <h2>My Portfolio</h2>
+                    <p>Total Value of Your Investment Portfolio:<br><strong>HK$10,000,000.00</strong></p>
+                    <p>Total Cash In Your Investment Portfolio:<br><strong>HK$10,000,000.00</strong></p>
+                    <img class="portfolio-empty-image" src="./assets/Portfolio_none.png" alt="No investment portfolio has been created">
+                    <p><em>You haven't created an investment portfolio!</em></p>
+                </div>
+                `
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('no-image');
+            },
+            on_load: function() {
+                enableNextAfterDelay(3);
+            }
+        };
+
+        const roboSuggestionInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                `
+                <div id="robo-suggestion-page" class="instruction-text portfolio-summary">
+                    <h2>Robo-advisor Suggested Investment Portfolio</h2>
+                    ${roboSuggestionImage
+                        ? `<img class="robo-suggestion-image" src="${roboSuggestionImage}" alt="Robo-advisor suggested investment portfolio">`
+                        : ''}
+                </div>
+                `
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('no-image');
+            }
+        };
+
+        const createPortfolioInstructions = {
+            type: jsPsychInstructions,
+            pages: [
+                `
+                <div id="create-portfolio-page" class="instruction-text">
+                    <h2>Create My Investment Portfolio</h2>
+                    <div class="create-instructions">
+                        <section class="how-to-use">
+                            <h3>How to Use</h3>
+                            <ol>
+                                <li>Select any of the following securities, or search using the input field below.</li>
+                                <li>Select “Buy” or “Sell”.</li>
+                                <li>Enter the number of units that you want to buy or sell.</li>
+                                <li>Click “Confirmation” at the bottom of the page to confirm the transaction.</li>
+                                <li>You may also click the button on the right to sell all your current holdings and switch to Robo-advisor's recommended portfolio!</li>
+                            </ol>
+                        </section>
+                        <section class="robo-follow-panel">
+                            <button id="robo-follow-button" class="one-click-button" type="button">
+                                One-Click<br>to Follow the Robo-Advisor’s Recommendation
+                            </button>
+                            <p id="robo-follow-note" class="robo-follow-note"></p>
+                        </section>
+                    </div>
+
+                    <section class="portfolio-account" aria-live="polite">
+                        <div><span>Total Value of Your Investment Portfolio</span><strong id="portfolio-total-value">HK$10,000,000.00</strong></div>
+                        <div><span>Total Cash In Your Investment Portfolio</span><strong id="portfolio-cash-balance">HK$10,000,000.00</strong></div>
+                    </section>
+
+                    <section class="stock-market">
+                        <h3>Hang Seng Index Securities</h3>
+                        <p class="stock-coverage-note">
+                            Stock names and HKD prices are based on the supplied Hang Seng Index list: <strong id="quote-updated-at"></strong>. These are fixed simulation prices, not live quotes.
+                        </p>
+                        <label class="stock-search-label" for="stock-search">Search securities</label>
+                        <input id="stock-search" class="stock-search" type="search" placeholder="Search by company name or code">
+                        <div id="stock-grid" class="stock-grid" aria-live="polite"></div>
+                    </section>
+
+                    <section id="trade-ticket" class="trade-ticket" hidden>
+                        <h3>Trade <span id="selected-stock-name"></span></h3>
+                        <p id="selected-stock-price"></p>
+                        <div class="trade-controls">
+                            <div class="trade-action-buttons" role="group" aria-label="Trade direction">
+                                <button id="buy-stock" class="trade-action-button" type="button" aria-pressed="false">Buy</button>
+                                <button id="sell-stock" class="trade-action-button" type="button" aria-pressed="false">Sell</button>
+                            </div>
+                            <label for="trade-quantity">Number of units</label>
+                            <input id="trade-quantity" type="number" min="1" step="1" value="1">
+                        </div>
+                        <p id="trade-estimate" class="trade-estimate"></p>
+                        <p id="trade-message" class="trade-message" role="status" aria-live="polite"></p>
+                        <button id="confirm-trade" class="confirm-trade-button" type="button">Confirmation</button>
+                    </section>
+
+                    <section class="trade-history-section">
+                        <h3>Confirmed Transactions</h3>
+                        <ol id="trade-history" class="trade-history">
+                            <li id="trade-history-empty">No transactions yet.</li>
+                        </ol>
+                    </section>
+
+                    <div id="robo-confirm-modal" class="confirmation-modal" hidden>
+                        <div class="confirmation-modal__content" role="alertdialog" aria-modal="true"
+                             aria-labelledby="robo-confirm-title" aria-describedby="robo-confirm-message">
+                            <h3 id="robo-confirm-title">Confirm portfolio replacement</h3>
+                            <p id="robo-confirm-message">Are you sure that you want to replace your current portfolio with what’s recommended by the robo-advisor? Transaction fees will apply!</p>
+                            <div class="confirmation-modal__actions">
+                                <button id="robo-confirm-cancel" class="confirmation-modal__button confirmation-modal__button--cancel" type="button">Cancel</button>
+                                <button id="robo-confirm-yes" class="confirmation-modal__button confirmation-modal__button--confirm" type="button">Yes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `
+            ],
+            show_clickable_nav: true,
+            on_start: function() {
+                setPageLayout('no-image');
+                document.querySelector('.experiment-panel').classList.add('trade-page');
+            },
+            on_load: function() {
+                const grid = document.getElementById('stock-grid');
+                const searchInput = document.getElementById('stock-search');
+                const ticket = document.getElementById('trade-ticket');
+                const selectedStockName = document.getElementById('selected-stock-name');
+                const selectedStockPrice = document.getElementById('selected-stock-price');
+                const quantityInput = document.getElementById('trade-quantity');
+                const estimate = document.getElementById('trade-estimate');
+                const message = document.getElementById('trade-message');
+                const cashDisplay = document.getElementById('portfolio-cash-balance');
+                const totalDisplay = document.getElementById('portfolio-total-value');
+                const history = document.getElementById('trade-history');
+                const followButton = document.getElementById('robo-follow-button');
+                const followNote = document.getElementById('robo-follow-note');
+                const confirmModal = document.getElementById('robo-confirm-modal');
+                const cancelFollowButton = document.getElementById('robo-confirm-cancel');
+                const confirmFollowButton = document.getElementById('robo-confirm-yes');
+                let selectedStock = null;
+                let tradeAction = null;
+                let roboTargetHoldings = null;
+
+                const formatMoney = amount => `HK$${amount.toLocaleString('en-HK', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                })}`;
+                const roundMoney = amount => Math.round((amount + Number.EPSILON) * 100) / 100;
+                const calculateFees = amount => {
+                    const brokerage = Math.max(50, amount * 0.000668);
+                    const levies = amount * 0.000077;
+                    const stampDuty = amount * 0.0013;
+                    const tradingFee = Math.min(amount * 0.00006, 200);
+                    return roundMoney(brokerage + levies + stampDuty + tradingFee);
+                };
+
+                function updateAccountSummary() {
+                    const holdingsValue = [...holdings.entries()].reduce((total, [code, quantity]) => {
+                        const stock = window.hsiStocks.find(item => item.code === code);
+                        return total + (stock ? stock.price * quantity : 0);
+                    }, 0);
+                    cashDisplay.textContent = formatMoney(cashBalance);
+                    totalDisplay.textContent = formatMoney(cashBalance + holdingsValue);
+                    experimentData.Final_Portfolio = Object.fromEntries(holdings);
+                    experimentData.Final_Portfolio.CASH = roundMoney(cashBalance);
+                }
+
+                function appendTradeHistory(record, source = '') {
+                    const emptyHistory = document.getElementById('trade-history-empty');
+                    if (emptyHistory) emptyHistory.remove();
+
+                    const historyItem = document.createElement('li');
+                    const prefix = source ? `${source} · ` : '';
+                    historyItem.textContent = `${prefix}${record.action} ${record.quantity} ${record.ticker} at ${formatMoney(record.price)}; order value ${formatMoney(record.orderValue)}; fees ${formatMoney(record.fees)}.`;
+                    history.appendChild(historyItem);
+                }
+
+                document.getElementById('quote-updated-at').textContent = window.hsiQuotesAt;
+
+                function updateEstimate() {
+                    if (!selectedStock || !tradeAction) {
+                        estimate.textContent = 'Select Buy or Sell and enter a quantity to preview the order.';
+                        return;
+                    }
+
+                    const quantity = Number(quantityInput.value);
+                    if (!Number.isInteger(quantity) || quantity < 1) {
+                        estimate.textContent = 'Enter a whole number of units greater than zero.';
+                        return;
+                    }
+
+                    const amount = selectedStock.price * quantity;
+                    const fees = calculateFees(amount);
+                    const holding = holdings.get(selectedStock.code) || 0;
+                    estimate.textContent = tradeAction === 'BUY'
+                        ? `Order value: ${formatMoney(amount)} · Estimated fees: ${formatMoney(fees)} · Total: ${formatMoney(amount + fees)}`
+                        : `Order value: ${formatMoney(amount)} · Estimated fees: ${formatMoney(fees)} · Shares held: ${holding}`;
+                }
+
+                function selectAction(action) {
+                    tradeAction = action;
+                    document.getElementById('buy-stock').setAttribute('aria-pressed', String(action === 'BUY'));
+                    document.getElementById('sell-stock').setAttribute('aria-pressed', String(action === 'SELL'));
+                    message.textContent = '';
+                    updateEstimate();
+                }
+
+                const stockByCode = new Map(window.hsiStocks.map(stock => [stock.code, stock]));
+                const recommendationTotalWeight = window.roboPortfolioAllocation.reduce(
+                    (total, item) => total + item.weight,
+                    0
+                );
+                const recommendedStocks = window.roboPortfolioAllocation
+                    .map(item => ({
+                        stock: stockByCode.get(item.code),
+                        weight: item.weight
+                    }))
+                    .filter(item => item.stock && item.stock.price > 0);
+
+                if (roboAdvisorGroup === 'Control') {
+                    followNote.textContent = 'No portfolio recommendation is displayed for this group. The button will still apply the investment portfolio automatically.';
+                } else {
+                    followNote.textContent = `High DT and Low DT use the supplied recommended portfolio. The non-HSI security 2800.HK is excluded; the remaining HSI weights (total ${recommendationTotalWeight.toFixed(4)}%) are normalized to 100%. Other holdings will be sold before following this portfolio.`;
+                }
+
+                window.hsiStocks.forEach(stock => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'stock-card';
+                    card.disabled = !(stock.price > 0);
+
+                    const companyName = document.createElement('strong');
+                    companyName.textContent = stock.name;
+                    const ticker = document.createElement('span');
+                    ticker.className = 'stock-ticker';
+                    ticker.textContent = stock.ticker;
+                    const quote = document.createElement('span');
+                    quote.className = 'stock-quote';
+                    quote.textContent = stock.price > 0
+                        ? `${formatMoney(stock.price)} per unit`
+                        : 'No current quote — trading unavailable';
+
+                    card.append(companyName, ticker, quote);
+                    card.dataset.search = `${stock.code} ${stock.ticker} ${stock.name}`.toLocaleLowerCase();
+                    card.addEventListener('click', () => {
+                        selectedStock = stock;
+                        tradeAction = null;
+                        selectedStockName.textContent = `${stock.name} · ${stock.ticker}`;
+                        selectedStockPrice.textContent = `Price: ${formatMoney(stock.price)} per unit`;
+                        quantityInput.value = '1';
+                        document.getElementById('buy-stock').setAttribute('aria-pressed', 'false');
+                        document.getElementById('sell-stock').setAttribute('aria-pressed', 'false');
+                        message.textContent = '';
+                        ticket.hidden = false;
+                        updateEstimate();
+                        ticket.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
+                    grid.appendChild(card);
+                });
+
+                searchInput.addEventListener('input', () => {
+                    const query = searchInput.value.trim().toLocaleLowerCase();
+                    grid.querySelectorAll('.stock-card').forEach(card => {
+                        card.hidden = !card.dataset.search.includes(query);
+                    });
+                });
+
+                document.getElementById('buy-stock').addEventListener('click', () => selectAction('BUY'));
+                document.getElementById('sell-stock').addEventListener('click', () => selectAction('SELL'));
+                quantityInput.addEventListener('input', updateEstimate);
+
+                document.getElementById('confirm-trade').addEventListener('click', () => {
+                    const quantity = Number(quantityInput.value);
+                    if (!selectedStock || !tradeAction) {
+                        message.textContent = 'Select a stock and choose Buy or Sell first.';
+                        return;
+                    }
+                    if (!Number.isInteger(quantity) || quantity < 1) {
+                        message.textContent = 'Enter a whole number of units greater than zero.';
+                        return;
+                    }
+
+                    const orderValue = roundMoney(selectedStock.price * quantity);
+                    const fees = calculateFees(orderValue);
+                    const heldQuantity = holdings.get(selectedStock.code) || 0;
+
+                    if (tradeAction === 'BUY') {
+                        const totalCost = roundMoney(orderValue + fees);
+                        if (totalCost > cashBalance) {
+                            message.textContent = 'Insufficient cash to complete this purchase, including fees.';
+                            return;
+                        }
+                        cashBalance = roundMoney(cashBalance - totalCost);
+                        holdings.set(selectedStock.code, heldQuantity + quantity);
+                    } else {
+                        if (quantity > heldQuantity) {
+                            message.textContent = `Insufficient shares to sell. You currently hold ${heldQuantity} units.`;
+                            return;
+                        }
+                        cashBalance = roundMoney(cashBalance + orderValue - fees);
+                        const remaining = heldQuantity - quantity;
+                        if (remaining === 0) {
+                            holdings.delete(selectedStock.code);
+                        } else {
+                            holdings.set(selectedStock.code, remaining);
+                        }
+                    }
+
+                    const tradeRecord = {
+                        action: tradeAction,
+                        ticker: selectedStock.ticker,
+                        quantity,
+                        price: selectedStock.price,
+                        fees,
+                        orderValue,
+                        cashAfter: cashBalance
+                    };
+                    experimentData.Manual_Trade.push(tradeRecord);
+                    appendTradeHistory(tradeRecord);
+
+                    message.textContent = 'Transaction confirmed.';
+                    updateAccountSummary();
+                    updateEstimate();
+                });
+
+                followButton.addEventListener('click', () => {
+                    if (followButton.disabled || recommendedStocks.length === 0 || recommendationTotalWeight <= 0) {
+                        return;
+                    }
+
+                    confirmModal.hidden = false;
+                    cancelFollowButton.focus();
+                });
+
+                function closeConfirmationModal() {
+                    confirmModal.hidden = true;
+                    followButton.focus();
+                }
+
+                cancelFollowButton.addEventListener('click', closeConfirmationModal);
+                confirmModal.addEventListener('click', event => {
+                    if (event.target === confirmModal) {
+                        closeConfirmationModal();
+                    }
+                });
+                document.addEventListener('keydown', event => {
+                    if (event.key === 'Escape' && !confirmModal.hidden) {
+                        closeConfirmationModal();
+                    }
+                });
+
+                confirmFollowButton.addEventListener('click', () => {
+                    closeConfirmationModal();
+                    experimentData.RA_Usage = 1;
+
+                    if (roboTargetHoldings === null) {
+                        const currentHoldingsValue = [...holdings.entries()].reduce((total, [code, quantity]) => {
+                            const stock = stockByCode.get(code);
+                            return total + (stock ? stock.price * quantity : 0);
+                        }, 0);
+                        const potentialSaleFees = [...holdings.entries()].reduce((total, [code, quantity]) => {
+                            const stock = stockByCode.get(code);
+                            return total + (stock ? calculateFees(stock.price * quantity) : 0);
+                        }, 0);
+                        const targetPortfolioValue = Math.max(
+                            0,
+                            cashBalance + currentHoldingsValue - potentialSaleFees
+                        );
+
+                        roboTargetHoldings = new Map(recommendedStocks.map(item => {
+                            const allocationWeight = item.weight / recommendationTotalWeight;
+                            const allocationBudget = targetPortfolioValue * allocationWeight;
+                            const estimatedFees = calculateFees(allocationBudget);
+                            const quantity = Math.floor(
+                                Math.max(0, allocationBudget - estimatedFees) / item.stock.price
+                            );
+                            return [item.stock.code, quantity];
+                        }));
+                    }
+
+                    const sellOrders = [];
+                    const buyOrders = [];
+
+                    for (const [code, quantity] of holdings.entries()) {
+                        const stock = stockByCode.get(code);
+                        if (!stock || quantity <= 0) continue;
+
+                        const targetQuantity = roboTargetHoldings.get(code) || 0;
+                        if (quantity > targetQuantity) {
+                            sellOrders.push({ stock, quantity: quantity - targetQuantity });
+                        }
+                    }
+
+                    for (const item of recommendedStocks) {
+                        const currentQuantity = holdings.get(item.stock.code) || 0;
+                        const targetQuantity = roboTargetHoldings.get(item.stock.code) || 0;
+                        if (targetQuantity > currentQuantity) {
+                            buyOrders.push({
+                                stock: item.stock,
+                                quantity: targetQuantity - currentQuantity
+                            });
+                        }
+                    }
+
+                    const saleProceeds = sellOrders.reduce((total, order) => {
+                        const orderValue = roundMoney(order.stock.price * order.quantity);
+                        return total + orderValue - calculateFees(orderValue);
+                    }, 0);
+                    const purchaseCost = buyOrders.reduce((total, order) => {
+                        const orderValue = roundMoney(order.stock.price * order.quantity);
+                        return total + orderValue + calculateFees(orderValue);
+                    }, 0);
+
+                    if (purchaseCost > cashBalance + saleProceeds + 0.01) {
+                        message.textContent = 'Unable to rebalance: available cash after planned sales is insufficient to complete the recommended purchases.';
+                        return;
+                    }
+
+                    for (const order of sellOrders) {
+                        const { stock, quantity } = order;
+                        const orderValue = roundMoney(stock.price * quantity);
+                        const fees = calculateFees(orderValue);
+                        cashBalance = roundMoney(cashBalance + orderValue - fees);
+                        const remainingQuantity = (holdings.get(stock.code) || 0) - quantity;
+                        if (remainingQuantity === 0) {
+                            holdings.delete(stock.code);
+                        } else {
+                            holdings.set(stock.code, remainingQuantity);
+                        }
+                        appendTradeHistory({
+                            action: 'SELL',
+                            ticker: stock.ticker,
+                            quantity,
+                            price: stock.price,
+                            fees,
+                            orderValue
+                        }, 'Robo-advisor');
+                    }
+
+                    for (const order of buyOrders) {
+                        const { stock, quantity } = order;
+                        const orderValue = roundMoney(stock.price * quantity);
+                        const fees = calculateFees(orderValue);
+                        const totalCost = roundMoney(orderValue + fees);
+                        cashBalance = roundMoney(cashBalance - totalCost);
+                        holdings.set(stock.code, (holdings.get(stock.code) || 0) + quantity);
+                        appendTradeHistory({
+                            action: 'BUY',
+                            ticker: stock.ticker,
+                            quantity,
+                            price: stock.price,
+                            fees,
+                            orderValue
+                        }, 'Robo-advisor');
+                    }
+
+                    if (sellOrders.length + buyOrders.length === 0) {
+                        message.textContent = 'Your portfolio already matches the robo-advisor recommendation. No trades were needed.';
+                    } else {
+                        message.textContent = 'Portfolio rebalanced to the robo-advisor recommendation. Only the differences were traded.';
+                    }
+                    updateAccountSummary();
+                });
+
+                updateAccountSummary();
+            }
+        };
+
+        timeline.push(introInstructions, roboInstructions, attentionCheck, rulesInstructions, portfolioInstructions);
+        if (roboAdvisorGroup !== 'Control') {
+            timeline.push(roboSuggestionInstructions);
+        }
+        timeline.push(createPortfolioInstructions);
+
+        jsPsych.run(timeline);
+    </script>
 </body>
-<script>
-    // 初始化 jsPsych
-    const jsPsych = initJsPsych({
-        on_finish: function() {
-            // 实验结束时的回调函数
-            alert("实验结束！感谢您的参与。");
-            // 以后这里会写“将数据传回 Qualtrics 并跳转”的代码
-        }
-    });
-
-    let timeline = [];
-
-    // 1. 指导语试次
-    const instructions = {
-        type: jsPsychInstructions,
-        pages: [
-            '欢迎参加本实验。<br>接下来屏幕中央会出现字母 F 或 J。',
-            '如果看到 <strong>F</strong>，请按键盘上的 <mark>F</mark> 键；<br>如果看到 <strong>J</strong>，请按键盘上的 <mark>J</mark> 键。<br><br>准备好了吗？点击下一步开始。'
-        ],
-        show_clickable_nav: true
-    };
-    timeline.push(instructions);
-
-    // 2. 刺激呈现试次（以呈现字母 F 为例）
-    const trial = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: '<div style="font-size: 60px;">F</div>',
-        choices: ['f', 'j'],
-        data: {
-            task: 'response',
-            correct_response: 'f'
-        }
-    };
-    timeline.push(trial);
-
-    // 运行实验
-    jsPsych.run(timeline);
-</script>
 </html>
