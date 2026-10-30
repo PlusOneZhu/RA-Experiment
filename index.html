@@ -9,6 +9,7 @@
     <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css" />
     <link href="./style.css" rel="stylesheet" type="text/css" />
     <script src="./assets/hsi-stocks.js"></script>
+    <script src="./assets/hsi-stock-english-names.js"></script>
     <script src="./assets/robo-allocation.js"></script>
 </head>
 <body>
@@ -27,13 +28,12 @@
         const surveyAResponseID = urlParams.get('SurveyA_ResponseID') || urlParams.get('Q_R') || 'TEST_USER';
         const qualtricsBaseUrl = 'https://ust.az1.qualtrics.com/jfe/form/SV_eEgPdUZHHxl9UeW';
 
-        const roboAdvisorGroups = ['High DT', 'Low DT', 'Control'];
+        const roboAdvisorGroups = ['High DT', 'Low DT'];
         const roboAdvisorGroup = roboAdvisorGroups[Math.floor(Math.random() * roboAdvisorGroups.length)];
-        let selectedSharpeAnswer = '';
+        let selectedAttentionAnswer = '';
         const roboSuggestionImage = {
             'High DT': './assets/Robo suggestion - High DT.png',
-            'Low DT': './assets/Robo suggestion - Low DT.png',
-            'Control': ''
+            'Low DT': './assets/Robo suggestion - Low DT.png'
         }[roboAdvisorGroup];
 
         // 2. 初始化实验变量
@@ -67,6 +67,7 @@
         let timeline = [];
 
         let countdownInterval = null;
+        let portfolioPageObserver = null;
 
         function setPageLayout(mode) {
             const imagePanel = document.querySelector('.image-panel');
@@ -136,11 +137,10 @@
                     '<h2>Robo-Advisor Assisted Investment Game</h2>' +
                     '<p>Welcome to this investment game!</p>' +
                     '<ul class="instruction-list">' +
-                        '<li>You will be given <strong>a virtual HK$10 million</strong> for investment.</li>' +
+                        '<li>You will be given <strong>a virtual HK$10 million</strong> for investment in 95 stocks that comprise the Hang Seng Index in Hong Kong.</li>' +
                         '<li>A robo-advisor designed by professors at HKUST will assist you in this game.</li>' +
-                        '<li>You may decide whether to follow the recommended portfolio from the robo-advisor.</li>' +
-                        '<li>Each participant will receive <strong>HK$50</strong> upon successful completion of the game and the exit survey.</li>' +
-                        '<li>The top 20 winners will earn <strong>extra cash rewards</strong>.</li>' +
+                        '<li>Each participant will receive <strong>HK$50</strong> upon successful completion of the game today.</li>' +
+                        '<li>The performance of your chosen portfolio will be evaluated in one-month time, i.e., on 15 December, 2026. The top 10 winners will earn an <strong>extra cash reward of $100 each</strong>.</li>' +
                     '</ul>' +
                     '<p>Please click "Next" to begin.</p>' +
                 '</div>'
@@ -155,14 +155,15 @@
         };
 
         const attentionOptions = [
-            "The total profit of a financial portfolio over time",
-            "The raw market price of an asset",
-            "The risk-adjusted return of a financial portfolio",
-            "The standard deviation of asset price changes"
-        ]
-            .map(value => ({ value, sort: Math.random() }))
-            .sort((a, b) => a.sort - b.sort)
-            .map(({ value }) => value);
+            "A financial knowledge competition",
+            "An investment competition",
+            "A sports competition",
+            "A business competition"
+        ];
+        for (let index = attentionOptions.length - 1; index > 0; index--) {
+            const randomIndex = Math.floor(Math.random() * (index + 1));
+            [attentionOptions[index], attentionOptions[randomIndex]] = [attentionOptions[randomIndex], attentionOptions[index]];
+        }
         let attentionPageObserver = null;
 
         const roboInstructions = {
@@ -192,17 +193,16 @@
                 `,
                 `
                 <div class="instruction-text attention-check">
-                    <h2>Knowledge Check</h2>
                     <fieldset>
-                        <legend>According to the information provided, what does the Sharpe ratio measure? <span aria-hidden="true">*</span></legend>
+                        <legend>What type of competition are you going to participate in?</legend>
                         ${attentionOptions.map(option => `
                             <label class="attention-check-option">
-                                <input type="radio" name="ATT_Sharpe" value="${option}" ${selectedSharpeAnswer === option ? 'checked' : ''}>
+                                <input type="radio" name="ATT_Sharpe" value="${option}" ${selectedAttentionAnswer === option ? 'checked' : ''}>
                                 <span>${option}</span>
                             </label>
                         `).join('')}
-                        <p class="attention-check-note">This is an attention check. If you are unsure, you may return to the previous page to review the information before answering. An incorrect answer will make you ineligible to receive the reward.</p>
                     </fieldset>
+                    <p class="attention-check-note">This is an attention check. If you are unsure, you may go back to review the information. Incorrect answers will not receive a reward.</p>
                 </div>
                 `
             ],
@@ -213,23 +213,23 @@
             },
             on_load: function() {
                 enableNextAfterDelay(2);
-                attentionPageObserver = new MutationObserver(setupSharpeQuestion);
+                attentionPageObserver = new MutationObserver(setupAttentionQuestion);
                 attentionPageObserver.observe(document.getElementById('jspsych-target'), {
                     childList: true,
                     subtree: true
                 });
-                setupSharpeQuestion();
+                setupAttentionQuestion();
             },
             on_finish: function() {
                 if (attentionPageObserver) {
                     attentionPageObserver.disconnect();
                     attentionPageObserver = null;
                 }
-                experimentData.ATT_Sharpe = selectedSharpeAnswer;
+                experimentData.ATT_Sharpe = selectedAttentionAnswer;
             }
         };
 
-        function setupSharpeQuestion() {
+        function setupAttentionQuestion() {
             const options = document.querySelectorAll('input[name="ATT_Sharpe"]');
             if (options.length === 0) return;
 
@@ -238,11 +238,11 @@
             const nextButton = buttons.length ? buttons[buttons.length - 1] : null;
             if (!nextButton) return;
 
-            nextButton.disabled = !selectedSharpeAnswer;
+            nextButton.disabled = !selectedAttentionAnswer;
             options.forEach(option => {
-                option.checked = option.value === selectedSharpeAnswer;
+                option.checked = option.value === selectedAttentionAnswer;
                 option.addEventListener('change', () => {
-                    selectedSharpeAnswer = option.value;
+                    selectedAttentionAnswer = option.value;
                     nextButton.disabled = false;
                 });
             });
@@ -316,7 +316,7 @@
             }
         };
 
-        const roboSuggestionInstructions = {
+        const createPortfolioInstructions = {
             type: jsPsychInstructions,
             pages: [
                 `
@@ -326,35 +326,25 @@
                         ? `<img class="robo-suggestion-image" src="${roboSuggestionImage}" alt="Robo-advisor suggested investment portfolio">`
                         : ''}
                 </div>
-                `
-            ],
-            show_clickable_nav: true,
-            on_start: function() {
-                setPageLayout('no-image');
-            }
-        };
-
-        const createPortfolioInstructions = {
-            type: jsPsychInstructions,
-            pages: [
+                `,
                 `
                 <div id="create-portfolio-page" class="instruction-text">
                     <h2>Create My Investment Portfolio</h2>
+                    <p id="trade-success-message" class="trade-success-message" role="status" aria-live="polite" hidden></p>
                     <div class="create-instructions">
+                        <section class="robo-follow-panel">
+                            <button id="robo-follow-button" class="one-click-button" type="button">
+                                One-Click<br>to Follow the Robo-Advisor’s<br>Recommendation
+                            </button>
+                        </section>
                         <section class="how-to-use">
                             <h3>How to Use</h3>
                             <ol>
                                 <li>Select any of the following securities, or search using the input field below.</li>
-                                <li>Select “Buy” or “Sell”.</li>
-                                <li>Enter the number of units that you want to buy or sell.</li>
-                                <li>Click “Confirmation” at the bottom of the page to confirm the transaction.</li>
+                                <li>Select a security to open the trading window.</li>
+                                <li>Select “Buy” or “Sell”, enter the number of units, then click “Confirmation”.</li>
                                 <li>You may also click the button on the right to sell all your current holdings and switch to Robo-advisor's recommended portfolio!</li>
                             </ol>
-                        </section>
-                        <section class="robo-follow-panel">
-                            <button id="robo-follow-button" class="one-click-button" type="button">
-                                One-Click<br>to Follow the Robo-Advisor’s Recommendation
-                            </button>
                         </section>
                     </div>
 
@@ -373,27 +363,45 @@
                         <div id="stock-grid" class="stock-grid" aria-live="polite"></div>
                     </section>
 
-                    <section id="trade-ticket" class="trade-ticket" hidden>
-                        <h3>Trade <span id="selected-stock-name"></span></h3>
-                        <p id="selected-stock-price"></p>
-                        <div class="trade-controls">
-                            <div class="trade-action-buttons" role="group" aria-label="Trade direction">
-                                <button id="buy-stock" class="trade-action-button" type="button" aria-pressed="false">Buy</button>
-                                <button id="sell-stock" class="trade-action-button" type="button" aria-pressed="false">Sell</button>
+                    <div id="trade-modal" class="confirmation-modal" hidden>
+                        <section id="trade-ticket" class="trade-ticket confirmation-modal__content trade-modal__content"
+                                 role="dialog" aria-modal="true" aria-labelledby="trade-modal-title">
+                            <header class="trade-modal__header">
+                                <h3 id="trade-modal-title">Trade <span id="selected-stock-name"></span></h3>
+                                <button id="close-trade-modal" class="trade-modal__close" type="button" aria-label="Close trading window">&times;</button>
+                            </header>
+                            <p id="selected-stock-price"></p>
+                            <div class="trade-controls">
+                                <div class="trade-action-buttons" role="group" aria-label="Trade direction">
+                                    <button id="buy-stock" class="trade-action-button" type="button" aria-pressed="false">Buy</button>
+                                    <button id="sell-stock" class="trade-action-button" type="button" aria-pressed="false">Sell</button>
+                                </div>
+                                <label for="trade-quantity">Number of units</label>
+                                <input id="trade-quantity" type="number" min="1" step="1" value="1">
                             </div>
-                            <label for="trade-quantity">Number of units</label>
-                            <input id="trade-quantity" type="number" min="1" step="1" value="1">
-                        </div>
-                        <p id="trade-estimate" class="trade-estimate"></p>
-                        <p id="trade-message" class="trade-message" role="status" aria-live="polite"></p>
-                        <button id="confirm-trade" class="confirm-trade-button" type="button">Confirmation</button>
-                    </section>
+                            <p id="trade-estimate" class="trade-estimate"></p>
+                            <p id="trade-message" class="trade-message" role="status" aria-live="polite"></p>
+                            <button id="confirm-trade" class="confirm-trade-button" type="button">Confirmation</button>
+                        </section>
+                    </div>
 
-                    <section class="trade-history-section">
-                        <h3>Confirmed Transactions</h3>
-                        <ol id="trade-history" class="trade-history">
-                            <li id="trade-history-empty">No transactions yet.</li>
-                        </ol>
+                    <section class="current-portfolio-section">
+                        <h3>Current Portfolio</h3>
+                        <div class="portfolio-table-wrapper">
+                            <table class="portfolio-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Stock</th>
+                                        <th scope="col">Shares held</th>
+                                        <th scope="col">Price per share</th>
+                                        <th scope="col">Total value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="current-portfolio-holdings">
+                                    <tr><td class="portfolio-empty" colspan="4">No stocks currently held.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </section>
 
                     <div id="robo-confirm-modal" class="confirmation-modal" hidden>
@@ -411,14 +419,36 @@
                 `
             ],
             show_clickable_nav: true,
+            allow_backward: true,
+            button_label_previous: 'Back',
             on_start: function() {
                 setPageLayout('no-image');
-                document.querySelector('.experiment-panel').classList.add('trade-page');
             },
             on_load: function() {
+                const target = document.getElementById('jspsych-target');
+                let initializedGrid = null;
+                portfolioPageObserver = new MutationObserver(() => {
+                    const page = target.querySelector('#create-portfolio-page');
+                    const panel = document.querySelector('.experiment-panel');
+                    if (!page) {
+                        panel.classList.remove('trade-page');
+                        initializedGrid = null;
+                        return;
+                    }
+
+                    const grid = page.querySelector('#stock-grid');
+                    if (!grid || grid === initializedGrid) return;
+                    initializedGrid = grid;
+                    panel.classList.add('trade-page');
+                    initializePortfolioPage();
+                });
+                portfolioPageObserver.observe(target, { childList: true, subtree: true });
+
+                function initializePortfolioPage() {
                 const grid = document.getElementById('stock-grid');
                 const searchInput = document.getElementById('stock-search');
-                const ticket = document.getElementById('trade-ticket');
+                const tradeModal = document.getElementById('trade-modal');
+                const closeTradeModalButton = document.getElementById('close-trade-modal');
                 const selectedStockName = document.getElementById('selected-stock-name');
                 const selectedStockPrice = document.getElementById('selected-stock-price');
                 const quantityInput = document.getElementById('trade-quantity');
@@ -426,12 +456,14 @@
                 const message = document.getElementById('trade-message');
                 const cashDisplay = document.getElementById('portfolio-cash-balance');
                 const totalDisplay = document.getElementById('portfolio-total-value');
-                const history = document.getElementById('trade-history');
+                const portfolioHoldings = document.getElementById('current-portfolio-holdings');
+                const successMessage = document.getElementById('trade-success-message');
                 const followButton = document.getElementById('robo-follow-button');
                 const confirmModal = document.getElementById('robo-confirm-modal');
                 const cancelFollowButton = document.getElementById('robo-confirm-cancel');
                 const confirmFollowButton = document.getElementById('robo-confirm-yes');
                 let selectedStock = null;
+                let selectedStockCard = null;
                 let tradeAction = null;
                 let roboTargetHoldings = null;
 
@@ -448,6 +480,11 @@
                     return roundMoney(brokerage + levies + stampDuty + tradingFee);
                 };
 
+                function clearSuccessMessage() {
+                    successMessage.textContent = '';
+                    successMessage.hidden = true;
+                }
+
                 function updateAccountSummary() {
                     const holdingsValue = [...holdings.entries()].reduce((total, [code, quantity]) => {
                         const stock = window.hsiStocks.find(item => item.code === code);
@@ -457,28 +494,37 @@
                     totalDisplay.textContent = formatMoney(cashBalance + holdingsValue);
                     experimentData.Final_Portfolio = Object.fromEntries(holdings);
                     experimentData.Final_Portfolio.CASH = roundMoney(cashBalance);
-                }
+                    portfolioHoldings.replaceChildren();
+                    const currentHoldings = [...holdings.entries()].filter(([, quantity]) => quantity > 0);
+                    if (currentHoldings.length === 0) {
+                        const emptyRow = document.createElement('tr');
+                        const emptyCell = document.createElement('td');
+                        emptyCell.className = 'portfolio-empty';
+                        emptyCell.colSpan = 4;
+                        emptyCell.textContent = 'No stocks currently held.';
+                        emptyRow.appendChild(emptyCell);
+                        portfolioHoldings.appendChild(emptyRow);
+                        return;
+                    }
 
-                function appendTradeHistory(record, source = '') {
-                    const emptyHistory = document.getElementById('trade-history-empty');
-                    if (emptyHistory) emptyHistory.remove();
+                    currentHoldings.forEach(([code, quantity]) => {
+                        const stock = stockByCode.get(code);
+                        if (!stock) return;
 
-                    const historyItem = document.createElement('li');
-                    const prefix = source ? `${source} · ` : '';
-                    historyItem.className = 'trade-history-item';
-
-                    const heading = document.createElement('strong');
-                    heading.className = 'trade-history-heading';
-                    heading.textContent = `${prefix}${record.action} · ${record.name} (${record.ticker})`;
-
-                    const quantity = document.createElement('span');
-                    quantity.textContent = `Quantity: ${record.quantity.toLocaleString('en-HK')} shares · Price: ${formatMoney(record.price)} per share`;
-
-                    const costs = document.createElement('span');
-                    costs.textContent = `Order value: ${formatMoney(record.orderValue)} · Fees: ${formatMoney(record.fees)}`;
-
-                    historyItem.append(heading, quantity, costs);
-                    history.appendChild(historyItem);
+                        const row = document.createElement('tr');
+                        const values = [
+                            `${stock.name} (${stock.ticker})`,
+                            quantity.toLocaleString('en-HK'),
+                            formatMoney(stock.price),
+                            formatMoney(stock.price * quantity)
+                        ];
+                        values.forEach(value => {
+                            const cell = document.createElement('td');
+                            cell.textContent = value;
+                            row.appendChild(cell);
+                        });
+                        portfolioHoldings.appendChild(row);
+                    });
                 }
 
                 document.getElementById('quote-updated-at').textContent = window.hsiQuotesAt;
@@ -508,6 +554,7 @@
                     document.getElementById('buy-stock').setAttribute('aria-pressed', String(action === 'BUY'));
                     document.getElementById('sell-stock').setAttribute('aria-pressed', String(action === 'SELL'));
                     message.textContent = '';
+                    clearSuccessMessage();
                     updateEstimate();
                 }
 
@@ -522,6 +569,31 @@
                         weight: item.weight
                     }))
                     .filter(item => item.stock && item.stock.price > 0);
+                const fixedRecommendationQuantities = new Map([
+                    ['00241', 4922],
+                    ['00669', 2389]
+                ]);
+
+                function closeTradeModal() {
+                    tradeModal.hidden = true;
+                    if (selectedStockCard && selectedStockCard.isConnected) {
+                        selectedStockCard.focus();
+                    } else {
+                        searchInput.focus();
+                    }
+                }
+
+                closeTradeModalButton.addEventListener('click', closeTradeModal);
+                tradeModal.addEventListener('click', event => {
+                    if (event.target === tradeModal) {
+                        closeTradeModal();
+                    }
+                });
+                tradeModal.addEventListener('keydown', event => {
+                    if (event.key === 'Escape' && !tradeModal.hidden) {
+                        closeTradeModal();
+                    }
+                });
 
                 window.hsiStocks.forEach(stock => {
                     const card = document.createElement('button');
@@ -529,31 +601,36 @@
                     card.className = 'stock-card';
                     card.disabled = !(stock.price > 0);
 
-                    const companyName = document.createElement('strong');
-                    companyName.textContent = stock.name;
+                    const names = document.createElement('span');
+                    names.className = 'stock-names';
+                    const englishName = document.createElement('strong');
+                    englishName.className = 'stock-name-en';
+                    englishName.textContent = window.hsiStockEnglishNames[stock.code] || stock.name;
+                    const chineseName = document.createElement('span');
+                    chineseName.className = 'stock-name-zh';
+                    chineseName.textContent = stock.name;
+                    names.append(englishName, chineseName);
+
                     const ticker = document.createElement('span');
                     ticker.className = 'stock-ticker';
                     ticker.textContent = stock.ticker;
-                    const quote = document.createElement('span');
-                    quote.className = 'stock-quote';
-                    quote.textContent = stock.price > 0
-                        ? `${formatMoney(stock.price)} per unit`
-                        : 'No current quote — trading unavailable';
 
-                    card.append(companyName, ticker, quote);
-                    card.dataset.search = `${stock.code} ${stock.ticker} ${stock.name}`.toLocaleLowerCase();
+                    card.append(names, ticker);
+                    card.dataset.search = `${stock.code} ${stock.ticker} ${stock.name} ${englishName.textContent}`.toLocaleLowerCase();
                     card.addEventListener('click', () => {
+                        selectedStockCard = card;
                         selectedStock = stock;
                         tradeAction = null;
+                        clearSuccessMessage();
                         selectedStockName.textContent = `${stock.name} · ${stock.ticker}`;
                         selectedStockPrice.textContent = `Price: ${formatMoney(stock.price)} per unit`;
                         quantityInput.value = '1';
                         document.getElementById('buy-stock').setAttribute('aria-pressed', 'false');
                         document.getElementById('sell-stock').setAttribute('aria-pressed', 'false');
                         message.textContent = '';
-                        ticket.hidden = false;
+                        tradeModal.hidden = false;
                         updateEstimate();
-                        ticket.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        closeTradeModalButton.focus();
                     });
                     grid.appendChild(card);
                 });
@@ -617,11 +694,16 @@
                         cashAfter: cashBalance
                     };
                     experimentData.Manual_Trade.push(tradeRecord);
-                    appendTradeHistory(tradeRecord);
 
-                    message.textContent = 'Transaction confirmed.';
+                    message.textContent = '';
+                    successMessage.textContent = tradeAction === 'BUY'
+                        ? 'Purchase successful.'
+                        : 'Sale successful.';
+                    successMessage.hidden = false;
+                    closeTradeModal();
                     updateAccountSummary();
                     updateEstimate();
+                    successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
 
                 followButton.addEventListener('click', () => {
@@ -629,6 +711,7 @@
                         return;
                     }
 
+                    clearSuccessMessage();
                     confirmModal.hidden = false;
                     cancelFollowButton.focus();
                 });
@@ -644,7 +727,7 @@
                         closeConfirmationModal();
                     }
                 });
-                document.addEventListener('keydown', event => {
+                confirmModal.addEventListener('keydown', event => {
                     if (event.key === 'Escape' && !confirmModal.hidden) {
                         closeConfirmationModal();
                     }
@@ -669,6 +752,11 @@
                         );
 
                         roboTargetHoldings = new Map(recommendedStocks.map(item => {
+                            const fixedQuantity = fixedRecommendationQuantities.get(item.stock.code);
+                            if (fixedQuantity !== undefined) {
+                                return [item.stock.code, fixedQuantity];
+                            }
+
                             const allocationWeight = item.weight / recommendationTotalWeight;
                             const allocationBudget = targetPortfolioValue * allocationWeight;
                             const estimatedFees = calculateFees(allocationBudget);
@@ -728,15 +816,6 @@
                         } else {
                             holdings.set(stock.code, remainingQuantity);
                         }
-                        appendTradeHistory({
-                            action: 'SELL',
-                            name: stock.name,
-                            ticker: stock.ticker,
-                            quantity,
-                            price: stock.price,
-                            fees,
-                            orderValue
-                        }, 'Robo-advisor');
                     }
 
                     for (const order of buyOrders) {
@@ -746,33 +825,31 @@
                         const totalCost = roundMoney(orderValue + fees);
                         cashBalance = roundMoney(cashBalance - totalCost);
                         holdings.set(stock.code, (holdings.get(stock.code) || 0) + quantity);
-                        appendTradeHistory({
-                            action: 'BUY',
-                            name: stock.name,
-                            ticker: stock.ticker,
-                            quantity,
-                            price: stock.price,
-                            fees,
-                            orderValue
-                        }, 'Robo-advisor');
                     }
 
                     if (sellOrders.length + buyOrders.length === 0) {
                         message.textContent = 'Your portfolio already matches the robo-advisor recommendation. No trades were needed.';
                     } else {
-                        message.textContent = 'Portfolio rebalanced to the robo-advisor recommendation. Only the differences were traded.';
+                        message.textContent = '';
+                        successMessage.textContent = 'Robo-advisor portfolio updated successfully.';
+                        successMessage.hidden = false;
+                        successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                     updateAccountSummary();
                 });
 
                 updateAccountSummary();
+                }
+            },
+            on_finish: function() {
+                if (portfolioPageObserver) {
+                    portfolioPageObserver.disconnect();
+                    portfolioPageObserver = null;
+                }
             }
         };
 
         timeline.push(introInstructions, roboInstructions, rulesInstructions, portfolioInstructions);
-        if (roboAdvisorGroup !== 'Control') {
-            timeline.push(roboSuggestionInstructions);
-        }
         timeline.push(createPortfolioInstructions);
 
         jsPsych.run(timeline);
